@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIS-31 Statistical Test Suite</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --primary-color: #4f46e5;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+            --pass-color: #10b981;
+            --fail-color: #ef4444;
+            --skip-color: #f59e0b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            margin: 0 0 0.5rem 0;
+            color: var(--primary-color);
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--primary-color);
+            border-radius: 8px;
+            padding: 2.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            background: #f0f0ff;
+        }
+
+        .drop-zone:hover {
+            background: #e0e0ff;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .stats-summary {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .stat-badge {
+            background: var(--bg-color);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: #f8fafc;
+            font-weight: 600;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-pass { background-color: #d1fae5; color: var(--pass-color); }
+        .badge-fail { background-color: #fee2e2; color: var(--fail-color); }
+        .badge-skip { background-color: #fef3c7; color: var(--skip-color); }
+
+        pre {
+            background: #f8fafc;
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin: 0;
+            font-family: monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>AIS-31 Test Suite</h1>
+        <p>Upload your CSV file containing binary sequences to run tests T0 through T8 locally.</p>
+    </header>
+
+    <div class="card">
+        <div class="drop-zone" id="dropZone">
+            <p style="margin: 0 0 0.5rem 0; font-weight: 600;">Click to upload or drag & drop CSV file</p>
+            <p style="margin: 0; font-size: 0.85rem; color: #6b7280;">File must contain '0' and '1' characters</p>
+            <input type="file" id="fileInput" accept=".csv,.txt">
+        </div>
+        
+        <div id="fileMetrics" class="stats-summary hidden">
+            <div class="stat-badge"><strong>File:</strong> <span id="fileName">-</span></div>
+            <div class="stat-badge"><strong>Total Bits parsed:</strong> <span id="bitCount">-</span></div>
+        </div>
+    </div>
+
+    <div id="resultsCard" class="card hidden">
+        <h2 style="margin-top: 0;">Test Execution Results</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Test Name</th>
+                    <th>Required Bits</th>
+                    <th>Status</th>
+                    <th>Metrics Details</th>
+                </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // --- UI Interactions ---
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileMetrics = document.getElementById('fileMetrics');
+    const resultsCard = document.getElementById('resultsCard');
+    const resultsTableBody = document.getElementById('resultsTableBody');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = '#e0e0ff'; });
+    dropZone.addEventListener('dragleave', () => dropZone.style.background = '#f0f0ff');
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.background = '#f0f0ff';
+        if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+        document.getElementById('fileName').textContent = file.name;
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            // Strip out everything that isn't a 0 or 1 (removes commas, newlines, etc. from CSV)
+            const text = e.target.result;
+            let bits = '';
+            for (let i = 0; i < text.length; i++) {
+                if (text[i] === '0' || text[i] === '1') {
+                    bits += text[i];
+                }
+            }
+            
+            document.getElementById('bitCount').textContent = bits.length.toLocaleString();
+            fileMetrics.classList.remove('hidden');
+            
+            if (bits.length < 20000) {
+                alert(`❌ Insufficient data (${bits.length} bits parsed). AIS-31 requires at least 20,000 bits.`);
+                resultsCard.classList.add('hidden');
+                return;
+            }
+            
+            runSuite(bits);
+        };
+        reader.readAsText(file);
+    }
+
+    // --- AIS-31 CRYPTOGRAPHIC ENGINE (Ported from Python) ---
+
+    function test_t0_disjointness(bits) {
+        const BLOCK_SIZE = 48, REQUIRED_BLOCKS = 65536;
+        const REQUIRED_BITS = BLOCK_SIZE * REQUIRED_BLOCKS;
+        if (bits.length < REQUIRED_BITS) return { passed: false, skip: true };
+        
+        const seen = new Set();
+        for (let i = 0; i < REQUIRED_BITS; i += BLOCK_SIZE) {
+            let chunk = bits.substring(i, i + BLOCK_SIZE);
+            let val = parseInt(chunk, 2);
+            if (seen.has(val)) {
+                return { passed: false, info: `Duplicate block found: 0x${val.toString(16)} at sequence block index ${i / BLOCK_SIZE}` };
+            }
+            seen.add(val);
+        }
+        return { passed: true, info: `Parsed distinct block count: ${seen.size}` };
+    }
+
+    function test_t1_monobit(bits) {
+        let n1 = 0;
+        for(let i=0; i<20000; i++) if (bits[i] === '1') n1++;
+        return { passed: n1 > 9654 && n1 < 10346, info: `Ones count (n1): ${n1}` };
+    }
+
+    function test_t2_poker(bits) {
+        const counts = new Array(16).fill(0);
+        for (let i = 0; i < 20000; i += 4) {
+            let val = parseInt(bits.substring(i, i + 4), 2);
+            counts[val]++;
+        }
+        let sumSq = 0;
+        for(let i=0; i<16; i++) sumSq += counts[i] * counts[i];
+        let y = (16 / 5000 * sumSq) - 5000;
+        return { passed: y > 2.16 && y < 46.17, info: `Y Statistic: ${y.toFixed(3)}` };
+    }
+
+    function test_t3_runs(bits) {
+        const limits = {
+            1: [2267, 2733], 2: [1079, 1421], 3: [502, 748],
+            4: [223, 402],   5: [90, 223],   6: [90, 223]
+        };
+        const r0 = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+        const r1 = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0};
+        
+        let curr_bit = bits[0], curr_len = 0;
+        for (let i = 0; i < 20000; i++) {
+            if (bits[i] === curr_bit) {
+                curr_len++;
+            } else {
+                let d = (curr_bit === '1') ? r1 : r0;
+                d[Math.min(curr_len, 6)]++;
+                curr_bit = bits[i];
+                curr_len = 1;
+            }
+        }
+        let d = (curr_bit === '1') ? r1 : r0;
+        d[Math.min(curr_len, 6)]++;
+
+        let passed = true;
+        for (let i = 1; i <= 6; i++) {
+            if (r0[i] <= limits[i][0] || r0[i] >= limits[i][1] || 
+                r1[i] <= limits[i][0] || r1[i] >= limits[i][1]) {
+                passed = false;
+            }
+        }
+        return { passed, info: `Zeros: ${JSON.stringify(r0)}\nOnes: ${JSON.stringify(r1)}` };
+    }
+
+    function test_t4_long_run(bits) {
+        let max_run = 0, curr_bit = bits[0], curr_len = 0;
+        for (let i = 0; i < 20000; i++) {
+            if (bits[i] === curr_bit) {
+                curr_len++;
+            } else {
+                max_run = Math.max(max_run, curr_len);
+                curr_bit = bits[i];
+                curr_len = 1;
+            }
+        }
+        max_run = Math.max(max_run, curr_len);
+        return { passed: max_run < 34, info: `Max run length: ${max_run}` };
+    }
+
+    function test_t5_autocorr(bits) {
+        let count = 0;
+        for (let i = 0; i < 19999; i++) {
+            if (bits[i] === bits[i+1]) count++;
+        }
+        return { passed: count > 9768 && count < 10232, info: `Shift-1 Match Count: ${count}` };
+    }
+
+    function test_t6_uniform(bits) {
+        const n = 12500;
+        if (bits.length < n * 8) return { passed: false, skip: true };
+        const counts = new Array(256).fill(0);
+        for (let i = 0; i < n * 8; i += 8) {
+            counts[parseInt(bits.substring(i, i + 8), 2)]++;
+        }
+        let chi_sq = 0;
+        const expected = n / 256;
+        for (let i = 0; i < 256; i++) {
+            chi_sq += Math.pow(counts[i] - expected, 2) / expected;
+        }
+        return { passed: chi_sq < 311.56, info: `Chi-Square Metric: ${chi_sq.toFixed(2)}` };
+    }
+
+    function test_t7_homogeneity(bits) {
+        if (bits.length < 200000) return { passed: false, skip: true };
+        function get_c(b) {
+            const c = new Array(256).fill(0);
+            for (let i = 0; i < 100000; i += 8) {
+                c[parseInt(b.substring(i, i + 8), 2)]++;
+            }
+            return c;
+        }
+        const c1 = get_c(bits.substring(0, 100000));
+        const c2 = get_c(bits.substring(100000, 200000));
+        let t_stat = 0;
+        for (let i = 0; i < 256; i++) {
+            if ((c1[i] + c2[i]) > 0) {
+                t_stat += Math.pow(c1[i] - c2[i], 2) / (c1[i] + c2[i]);
+            }
+        }
+        return { passed: t_stat < 311.56, info: `T-Statistic: ${t_stat.toFixed(2)}` };
+    }
+
+    function test_t8_entropy(bits) {
+        const L = 8, Q = 2560, K = 25600;
+        const totalBits = (Q + K) * L; // 225,280 bits
+        if (bits.length < totalBits) return { passed: false, skip: true };
+
+        const last_seen = new Map();
+        let sum_log = 0.0;
+        
+        for (let i = 0; i < Q; i++) {
+            let block = parseInt(bits.substring(i * L, (i + 1) * L), 2);
+            last_seen.set(block, i);
+        }
+        for (let i = Q; i < Q + K; i++) {
+            let block = parseInt(bits.substring(i * L, (i + 1) * L), 2);
+            if (last_seen.has(block)) {
+                sum_log += Math.log2(i - last_seen.get(block));
+            } else {
+                sum_log += Math.log2(i + 1);
+            }
+            last_seen.set(block, i);
+        }
+        let fn = sum_log / K;
+        return { passed: fn > 7.976, info: `Entropy per byte: ${fn.toFixed(5)}` };
+    }
+
+    // --- Execution Orchestrator ---
+    function runSuite(bits) {
+        const suite = [
+            { name: "T1 Monobit", func: test_t1_monobit, req: 20000 },
+            { name: "T2 Poker", func: test_t2_poker, req: 20000 },
+            { name: "T3 Runs", func: test_t3_runs, req: 20000 },
+            { name: "T4 Long Run", func: test_t4_long_run, req: 20000 },
+            { name: "T5 Autocorr", func: test_t5_autocorr, req: 20000 },
+            { name: "T6 Uniform", func: test_t6_uniform, req: 100000 },
+            { name: "T7 Homogen", func: test_t7_homogeneity, req: 200000 },
+            { name: "T8 Entropy", func: test_t8_entropy, req: 225280 },
+            { name: "T0 Disjoint", func: test_t0_disjointness, req: 3145728 }
+        ];
+
+        resultsTableBody.innerHTML = '';
+        const L = bits.length;
+
+        suite.forEach(test => {
+            const row = document.createElement('tr');
+            let statusBadge = '';
+            let detailsContent = '';
+
+            if (L >= test.req) {
+                const res = test.func(bits);
+                if (res.skip) {
+                    statusBadge = `<span class="badge badge-skip">Skip</span>`;
+                    detailsContent = `Needs ${test.req.toLocaleString()} bits`;
+                } else if (res.passed) {
+                    statusBadge = `<span class="badge badge-pass">Pass</span>`;
+                    detailsContent = `<pre>${res.info}</pre>`;
+                } else {
+                    statusBadge = `<span class="badge badge-fail">Fail</span>`;
+                    detailsContent = `<pre>${res.info}</pre>`;
+                }
+            } else {
+                statusBadge = `<span class="badge badge-skip">Skip</span>`;
+                detailsContent = `Insufficient data. Needs ${test.req.toLocaleString()} bits (Have ${L.toLocaleString()})`;
+            }
+
+            row.innerHTML = `
+                <td><strong>${test.name}</strong></td>
+                <td>${test.req.toLocaleString()}</td>
+                <td>${statusBadge}</td>
+                <td>${detailsContent}</td>
+            `;
+            resultsTableBody.appendChild(row);
+        });
+
+        resultsCard.classList.remove('hidden');
+    }
+</script>
+
+</body>
+</html>

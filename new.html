@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Diehard Native Batch Automation</title>
+    <style>
+        body { font-family: sans-serif; background: #121214; color: #e1e1e6; padding: 40px; }
+        .card { max-width: 600px; margin: auto; background: #202024; padding: 30px; border-radius: 8px; border: 1px solid #323238;}
+        select, input, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 4px; box-sizing: border-box; font-size: 16px;}
+        button { background: #00b37e; border: none; color: white; font-weight: bold; cursor: pointer;}
+        pre { background: #121214; padding: 15px; border-radius: 4px; color: #00b37e; overflow-x: auto;}
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Diehard Command Generator</h2>
+    <p>Browsers cannot launch external scripts natively. Use this interface to compile your native OS terminal execution script instantly:</p>
+    
+    <label>1. Select Test Script:</label>
+    <select id="scriptName">
+        <option value="test_3dsph.py">test_3dsph.py</option>
+        <option value="test_31matrix.py">test_31matrix.py</option>
+        <option value="test_32matrix.py">test_32matrix.py</option>
+        <option value="test_68matrix.py">test_68matrix.py</option>
+        <option value="test_birthspace.py">test_birthspace.py</option>
+        <option value="test_craps.py">test_craps.py</option>
+        <option value="test_ctspecific.py">test_ctspecific.py</option>
+        <option value="test_ctstream.py">test_ctstream.py</option>
+        <option value="test_dna.py">test_dna.py</option>
+        <option value="test_mindis.py">test_mindis.py</option>
+        <option value="test_monkey.py">test_monkey.py</option>
+        <option value="test_opso.py">test_opso.py</option>
+        <option value="test_oqso.py">test_oqso.py</option>
+        <option value="test_overlapperm.py">test_overlapperm.py</option>
+        <option value="test_oversumstest.py">test_oversumstest.py</option>
+        <option value="test_parklot.py">test_parklot.py</option>
+        <option value="test_run.py">test_run.py</option>
+        <option value="test_squeeze.py">test_squeeze.py</option>
+    </select>
+
+    <label>2. Type target CSV Filename (placed in the same directory):</label>
+    <input type="text" id="csvName" value="data.csv" placeholder="e.g. data.csv">
+
+    <button onclick="generateAutomation()">Generate & Download Runner Script</button>
+    
+    <p>Generated Terminal Command:</p>
+    <pre id="cmdPreview">python test_3dsph.py data.csv && pause</pre>
+</div>
+
+<script>
+    function generateAutomation() {
+        const script = document.getElementById('scriptName').value;
+        const csv = document.getElementById('csvName').value;
+        
+        // Windows syntax command structure
+        const commandString = `python ${script} ${csv}\npause`;
+        document.getElementById('cmdPreview').textContent = commandString;
+
+        // Download as executable Batch file (.bat) directly out of browser memory
+        const blob = new Blob([commandString], { type: 'text/plain' });
+        const pointer = document.createElement('a');
+        pointer.href = URL.createObjectURL(blob);
+        pointer.download = 'run_diehard_test.bat';
+        pointer.click();
+    }
+</script>
+
+</body>
+</html>

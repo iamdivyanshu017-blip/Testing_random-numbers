@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+numpy
+scipy
+pydantic
+
+to make it run on local host:put this in the terminal;
+uvicorn nist_api:app --host 127.0.0.1 --port 0000

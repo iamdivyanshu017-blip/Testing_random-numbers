@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Entropy Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-10">
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-8 border-b border-slate-700 pb-6 text-center md:text-left">
+            <h1 class="text-3xl font-bold text-cyan-400">Binary Entropy CSV Analyzer</h1>
+            <p class="text-slate-400">Upload a CSV containing your binary sequence</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-1 space-y-6">
+                <div id="dropZone" class="bg-slate-800 p-8 rounded-2xl border-2 border-dashed border-slate-600 hover:border-cyan-500 transition-all text-center cursor-pointer">
+                    <input type="file" id="fileInput" accept=".csv" class="hidden">
+                    <div class="space-y-4">
+                        <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <p class="text-sm text-slate-300">Click to upload or drag & drop</p>
+                        <p class="text-xs text-slate-500">Expects CSV with 0s and 1s</p>
+                    </div>
+                </div>
+
+                <div id="results" class="hidden space-y-4">
+                    <div class="bg-slate-800 p-4 rounded-xl border-l-4 border-blue-500 shadow">
+                        <p class="text-xs uppercase tracking-wider text-slate-400">MCV Entropy</p>
+                        <p id="res-mcv" class="text-xl font-mono text-blue-300">-</p>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl border-l-4 border-emerald-500 shadow">
+                        <p class="text-xs uppercase tracking-wider text-slate-400">Markov Entropy</p>
+                        <p id="res-markov" class="text-xl font-mono text-emerald-300">-</p>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl border-l-4 border-amber-500 shadow">
+                        <p class="text-xs uppercase tracking-wider text-slate-400">Final H-Min</p>
+                        <p id="res-final" class="text-2xl font-bold font-mono text-amber-400">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl h-72">
+                    <canvas id="distChart"></canvas>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl h-72">
+                    <canvas id="traceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        let distChart, traceChart;
+
+        // Trigger file browser on click
+        dropZone.onclick = () => fileInput.click();
+
+        // Handle file selection
+        fileInput.onchange = (e) => handleFile(e.target.files[0]);
+
+        // Drag & Drop logic
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('border-cyan-500'); };
+        dropZone.ondragleave = () => dropZone.classList.remove('border-cyan-500');
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            handleFile(e.dataTransfer.files[0]);
+        };
+
+        function handleFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                // Parse CSV: Remove commas, quotes, and newlines, keep only 0 and 1
+                const sequence = text.replace(/[^01]/g, '');
+                if (sequence.length > 0) {
+                    processSequence(sequence);
+                } else {
+                    alert("No binary data found in the CSV!");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- Calculation Logic (Same as before but for JS) ---
+        function calculateMCV(seq) {
+            const n = seq.length;
+            let c0 = 0, c1 = 0;
+            for (let char of seq) char === '0' ? c0++ : c1++;
+            const pMax = Math.max(c0, c1) / n;
+            return { hMin: -Math.log2(pMax), counts: [c0, c1] };
+        }
+
+        function calculateMarkov(seq) {
+            const n = seq.length;
+            if (n < 2) return { hMin: 0 };
+            const trans = { "00": 0, "01": 0, "10": 0, "11": 0 };
+            let c0 = 0, c1 = 0;
+            for (let i = 0; i < n - 1; i++) {
+                trans[seq[i] + seq[i+1]]++;
+                seq[i] === "0" ? c0++ : c1++;
+            }
+            const pVals = [
+                c0 > 0 ? trans["00"]/c0 : 0, c0 > 0 ? trans["01"]/c0 : 0,
+                c1 > 0 ? trans["10"]/c1 : 0, c1 > 0 ? trans["11"]/c1 : 0
+            ];
+            return { hMin: -Math.log2(Math.max(...pVals)) };
+        }
+
+        function processSequence(seq) {
+            const mcv = calculateMCV(seq);
+            const markov = calculateMarkov(seq);
+            const finalHMin = Math.min(mcv.hMin, markov.hMin);
+
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('res-mcv').innerText = mcv.hMin.toFixed(4) + " bits";
+            document.getElementById('res-markov').innerText = markov.hMin.toFixed(4) + " bits";
+            document.getElementById('res-final').innerText = finalHMin.toFixed(4) + " bits/bit";
+
+            renderCharts(mcv.counts, seq.split('').slice(0, 100).map(Number));
+        }
+
+        function renderCharts(counts, traceData) {
+            if (distChart) distChart.destroy();
+            if (traceChart) traceChart.destroy();
+
+            distChart = new Chart(document.getElementById('distChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['0', '1'],
+                    datasets: [{ data: counts, backgroundColor: ['#3b82f6', '#10b981'] }]
+                },
+                options: { 
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: {display: false}, title: {display: true, text: 'Bit Distribution', color: '#94a3b8'} }
+                }
+            });
+
+            traceChart = new Chart(document.getElementById('traceChart'), {
+                type: 'line',
+                data: {
+                    labels: traceData.map((_, i) => i),
+                    datasets: [{ data: traceData, stepped: true, borderColor: '#a855f7', pointRadius: 0 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { min: -0.5, max: 1.5, ticks: {stepSize: 1} }, x: {display: false} },
+                    plugins: { legend: {display: false}, title: {display: true, text: 'Sequence Visual (First 100 Bits)', color: '#94a3b8'} }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
