@@ -22,9 +22,9 @@ import contextlib
 import streamlit as st
 import numpy as np
 
-# ---------------------------------------------------------------------------
+
 # Paths
-# ---------------------------------------------------------------------------
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 AIS_DIR = os.path.join(BASE_DIR, "AIS Test Suites")
@@ -51,11 +51,10 @@ def load_module(name, filepath, extra_syspath=None):
     return module
 
 
-# ---------------------------------------------------------------------------
+
 # Data parsing — explicit binary vs decimal (no silent auto-detection).
 # Decimal mode groups N numbers into one binary "key" at a time, producing
 # multiple keys that get tested independently and aggregated.
-# ---------------------------------------------------------------------------
 
 def parse_binary_input(raw: str, bits_per_key: int = 0) -> tuple[list[str], list[str]]:
     """
@@ -129,9 +128,8 @@ def parse_decimal_keys(raw: str, bit_width: int, numbers_per_key: int) -> tuple[
     return keys, warnings
 
 
-# ---------------------------------------------------------------------------
+
 # Visual helpers
-# ---------------------------------------------------------------------------
 
 VERDICT_STYLE = {
     "PASS": {"bg": "#DCFCE7", "fg": "#15803D", "label": "PASS"},
@@ -220,11 +218,11 @@ def section_header(number, text, color="#6366F1"):
     )
 
 
-# ---------------------------------------------------------------------------
+
 # Suite runners — each returns (verdict_status, subtitle, detail_renderer_function)
 # All (except Dieharder) take a single key's bit string and are called once
 # per key by the aggregation loop below.
-# ---------------------------------------------------------------------------
+
 
 def run_nist(bits, alpha):
     """
@@ -289,7 +287,7 @@ def run_nist(bits, alpha):
 
     countable = pass_count + fail_count
 
-    # ---------------------------------------------------------------
+ 
     # IMPORTANT:
     #
     # Do NOT do:
@@ -300,7 +298,7 @@ def run_nist(bits, alpha):
     # the SAME sequence.
     #
     # For a single sequence, we report the actual test outcomes.
-    # ---------------------------------------------------------------
+
 
     if countable == 0:
 
@@ -349,12 +347,12 @@ def run_nist(bits, alpha):
 
     def render_details():
 
-        # -----------------------------------------------------------
+        
         # DO NOT call this "NIST pass rate".
         #
         # It is simply a descriptive count of the individual tests
         # applied to this one sequence.
-        # -----------------------------------------------------------
+  
 
         if countable:
             pass_bar(
@@ -532,9 +530,9 @@ RUNNERS = {
     "Min-Entropy": lambda bits, alpha: run_entropy(bits),
 }
 
-# ---------------------------------------------------------------------------
+
 # Page setup + global style
-# ---------------------------------------------------------------------------
+
 st.set_page_config(page_title="PUFSentinel", layout="wide")
 
 st.markdown(
@@ -766,9 +764,9 @@ elif run_clicked:
                         k_overall, k_subtitle, k_render = "MIXED", f"Error: {e}", (lambda: st.error(str(e)))
                     per_key_results.append((idx, k_overall, k_subtitle, k_render))
 
-                        # -------------------------------------------------------
+                       
             # Per-key results
-            # -------------------------------------------------------
+         
 
             per_key_results = []
 
@@ -805,7 +803,7 @@ elif run_clicked:
                         )
                     )
 
-            # -------------------------------------------------------
+            
             # IMPORTANT FOR NIST:
             #
             # If there is only ONE key/sequence, do NOT say:
@@ -815,7 +813,7 @@ elif run_clicked:
             # because there is only one sequence.
             #
             # If multiple keys are supplied, each key is a sequence.
-            # -------------------------------------------------------
+           
 
             total = len(per_key_results)
 
@@ -843,9 +841,9 @@ elif run_clicked:
 
             else:
 
-                            # ---------------------------------------------------------------
+                            
              # Aggregate results across keys/sequences
-             # ---------------------------------------------------------------
+            
 
              total = len(per_key_results)
 
@@ -868,9 +866,9 @@ elif run_clicked:
                 if overall == "MIXED"
              ) 
 
-             # ---------------------------------------------------------------
+
              # Determine overall status
-             # ---------------------------------------------------------------
+             
 
             if total == 0:
 
@@ -916,19 +914,18 @@ elif run_clicked:
                     f"{mixed_count} mixed/inconclusive"
                 )
 
-            # ---------------------------------------------------------------
+           
             # Display overall verdict
-            # ---------------------------------------------------------------
+          
 
             verdict_pill(
                 agg_status,
                 agg_subtitle
             )
 
-            # ---------------------------------------------------------------
+           
             # Display detailed results
-            # ---------------------------------------------------------------
-
+           
             with st.expander("View test report details"):
 
                 if total > 1:
@@ -954,9 +951,9 @@ elif run_clicked:
                         "is not applicable to a single sequence."
                     )
 
-                # -----------------------------------------------------------
+             
                 # Show each key/sequence
-                # -----------------------------------------------------------
+            
 
                 for (
                     idx,
